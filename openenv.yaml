@@ -1,0 +1,96 @@
+name: sre-incident-response
+version: "1.0.0"
+openenv_spec: "1.0"
+
+description: >
+  A real-world SRE (Site Reliability Engineering) incident response simulation.
+  An AI agent receives cloud infrastructure alerts, diagnoses root causes through
+  log and metric queries, applies targeted remediations, and closes incidents.
+  Designed to train and evaluate agents on realistic on-call triage workflows.
+
+domain: devops
+tags:
+  - sre
+  - incident-response
+  - kubernetes
+  - cloud-infrastructure
+  - devops
+  - real-world
+
+tasks:
+  - id: pod-oom-restart
+    difficulty: easy
+    max_steps: 10
+    description: >
+      Single Kubernetes pod OOMKilled and crash-looping.
+      Agent must identify OOM root cause via log query and apply memory limit config fix.
+
+  - id: db-connection-cascade
+    difficulty: medium
+    max_steps: 15
+    description: >
+      Database connection pool exhausted causing upstream API 503 errors.
+      Agent must trace root cause past symptomatic services and avoid a red-herring alert.
+
+  - id: multi-service-brownout
+    difficulty: hard
+    max_steps: 20
+    description: >
+      Nginx rate limit misconfiguration after deploy causes multi-service brownout.
+      5 simultaneous alerts (2 symptomatic, 1 causal, 2 noise). Agent must trace
+      root cause, apply correct fix, verify downstream recovery, and ignore noise.
+
+action_space:
+  type: structured_json
+  schema_endpoint: /tasks
+  actions:
+    - diagnose
+    - query_logs
+    - query_metrics
+    - run_command
+    - apply_config
+    - escalate
+    - close_incident
+
+observation_space:
+  type: structured_json
+  fields:
+    - task_id
+    - step_count
+    - max_steps
+    - active_alerts
+    - system_topology
+    - action_history
+    - last_action_feedback
+    - incident_context
+
+reward:
+  type: dense
+  range: [0.0, 1.0]
+  signals:
+    - relevant_diagnosis: partial credit for querying root cause service
+    - correct_remediation: major credit for correct fix on correct service
+    - destructive_action: penalty for acting on healthy/irrelevant services
+    - loop_penalty: penalty for repeated identical actions
+    - clean_close: credit for closing after confirmed resolution
+    - efficiency: bonus for optimal step count
+
+endpoints:
+  reset:   POST /reset
+  step:    POST /step
+  state:   GET  /state
+  tasks:   GET  /tasks
+  grader:  POST /grader
+  baseline: POST /baseline
+  health:  GET  /health
+
+deployment:
+  platform: huggingface_spaces
+  type: docker
+  port: 7860
+  tag: openenv
+
+baseline:
+  model: gpt-4o-mini
+  script: baseline.py
+  reproducible: true
